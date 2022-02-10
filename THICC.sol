@@ -3,37 +3,39 @@ pragma solidity ^0.8.0;
 
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/utils/math/SafeMath.sol';
-import '@openzeppelin/contracts/access/Ownable.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
 import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol';
 import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol';
 import '@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol';
 
-
-contract THICC is Context, IERC20, Ownable {
+contract THICCETH is IERC20 {
     using SafeMath for uint256;
     using Address for address;
 
+    address private ThiccFund=0xF41127F8d8701679D350B33a803bd2a3cA931bC1;
+    address private Competitions=0x8B2029B9c7F95a93Dec977c17203B67b42642362;
+    address private GameRewards=0x9E69859Eeb8E7aC675cC1F5CDFf976849CCf5AF0;
+    address private Marketing=0x0f6Cf3100eA3EA3A3530E28A155EC0711dD05E4e;
+    address private ProjectExpansion=0x87b1b8f0b86F080240a43BF4c433De5a3fC2F4F6;
+    
     // here we store Token holder who have more then one THICC token.
-    address[] public TokenHolders;
-    
-    // here we store another bot contract address for 4% token.
-    address public PartnerContractAddress;
-
+    address[] private TokenHolders;
+    // here we store partner contract address.
+    address private PartnerContractAddress;
     // here we store the NFT holder address
-   address public nftContractAddress;
+    address private nftContractAddress;
     // here we transfer burn token whenever transaction is happening and don't change this deadAddress.
-    address public  deadAddress= 0x000000000000000000000000000000000000dEaD;
-   
-    
+    address private  deadAddress= 0x000000000000000000000000000000000000dEaD;
+
     uint256 private holderFeePercent = 4;
     uint256 private nftHolderFeePercent = 2;
     uint256 private partnerHoldersFeePercent = 5;
     uint256 private burnTokenPercent=1;
 
-    // here we store bot address for which we can change high liquidity fee which is 30%
-    mapping(address => bool) public _isBots;
-    mapping(address => bool) public HolderExist;
+    address private owner;
+   
+    mapping(address => bool) private _isBots;
+    mapping(address => bool) private HolderExist;
 
     mapping(address => uint256) private _rOwned;
     mapping(address => uint256) private _tOwned;
@@ -47,13 +49,13 @@ contract THICC is Context, IERC20, Ownable {
 
     uint256 private minimumTokenHolder = 1*(10**9);
     uint256 private constant MAX = ~uint256(0);
-    uint256 public _tTotal = 1000000000000000 * 10**9;
+    uint256 private _tTotal = 1000000000000000 * 10**9;
     uint256 private _rTotal = (MAX - (MAX % _tTotal));
     uint256 private _tFeeTotal;
 
-    string public _name = 'Thicc Coin';
-    string public _symbol = 'THICC';
-    uint8 public _decimals = 9;
+    string private _name = 'Thicc Token';
+    string private _symbol = 'THICC';
+    uint8 private _decimals = 9;
 
     uint256 private _taxFee;
     uint256 private _previousTaxFee = _taxFee;
@@ -67,27 +69,61 @@ contract THICC is Context, IERC20, Ownable {
 
     uint256 launchTime;
 
-    IUniswapV2Router02 public uniswapV2Router;
-    address public uniswapV2Pair;
-
-    bool inSwapAndLiquify;
+    IUniswapV2Router02 private uniswapV2Router;
+    address private uniswapV2Pair;
 
     bool tradingOpen = false;
+    
+    mapping(bytes32 => bool) public processedHashes;
 
-    event SwapETHForTokens(uint256 amountIn, address[] path);
+    enum Step { deposit }
 
-    event SwapTokensForETH(uint256 amountIn, address[] path);
-
-    modifier lockTheSwap() {
-        inSwapAndLiquify = true;
-        _;
-        inSwapAndLiquify = false;
-    }
+    event depositToken(address from, address to, uint amount, Step indexed step);
 
     constructor() {
-        _rOwned[_msgSender()] = _rTotal;
-        emit Transfer(address(0), _msgSender(), _tTotal);
-        }
+        owner = _msgSender();
+
+       uint256 rToken= _rTotal/100;
+       uint256 tToken=  _tTotal/100;
+
+       uint256 rTokenOnePercent=rToken*1;
+       uint256 tTokenOnePercent=tToken*1;
+
+
+       uint256 rTokenTwoPercent=rToken*2;
+       uint256 tTokenTwoPercent=tToken*2;
+
+       uint256 rTokenFivePercent=rToken*5;
+       uint256 tTokenFivePercent=tToken*5;
+
+       uint256 rTokenNintyPercent=rToken*90;
+       uint256 tTokenNintyPercent=tToken*90;
+
+       
+        _rOwned[_msgSender()] = rTokenNintyPercent;
+        emit Transfer(address(0), _msgSender(), tTokenNintyPercent);
+
+        _rOwned[ThiccFund] = rTokenOnePercent;
+        emit Transfer(address(0), ThiccFund, tTokenOnePercent);
+
+        _rOwned[Competitions] = rTokenOnePercent;
+        emit Transfer(address(0), Competitions, tTokenOnePercent);
+
+        _rOwned[GameRewards] = rTokenOnePercent;
+        emit Transfer(address(0),GameRewards, tTokenOnePercent);
+
+        _rOwned[Marketing] = rTokenTwoPercent;
+        emit Transfer(address(0),Marketing, tTokenTwoPercent);
+
+        _rOwned[ProjectExpansion] = rTokenFivePercent;
+        emit Transfer(address(0), ProjectExpansion, tTokenFivePercent);
+        TokenHolders.push(ThiccFund);
+        TokenHolders.push(Competitions);
+        TokenHolders.push(GameRewards);
+        TokenHolders.push(Marketing);
+        TokenHolders.push(ProjectExpansion);
+       
+    }
 
     function initContract() external onlyOwner {
 
@@ -103,8 +139,15 @@ contract THICC is Context, IERC20, Ownable {
 
         uniswapV2Router = _uniswapV2Router;
 
-        _isExcludedFromFee[owner()] = true;
+        _isExcludedFromFee[owner] = true;
         _isExcludedFromFee[address(this)] = true;
+         _isExcludedFromFee[ThiccFund] = true;
+        _isExcludedFromFee[Competitions] = true;
+         _isExcludedFromFee[GameRewards] = true;
+        _isExcludedFromFee[Marketing] = true;
+         _isExcludedFromFee[ProjectExpansion] = true;
+         _isExcludedFromFee[PartnerContractAddress] = true;
+         _isExcludedFromFee[nftContractAddress] = true;
     }
 
     function openTrading() external onlyOwner {
@@ -114,25 +157,67 @@ contract THICC is Context, IERC20, Ownable {
         launchTime = block.timestamp;
     }
 
-    // here we add/change Bot contract address
-    function addPartnerContractAddress(address BotContractaddress) public onlyOwner returns(bool){
-    PartnerContractAddress = BotContractaddress;
-    return true;
+    function _msgSender() internal view virtual returns(address) {
+        return msg.sender;
     }
 
+    modifier onlyOwner {
+        _onlyOwner();
+        _;
+    }
 
+    function _onlyOwner() private view {
+        require(_msgSender() == owner);
+    }
+    
+    // This function will send tokens from wallet to contract address | BURN
+    function deposit(address to, uint256 amount) public {
+        _tokenTransfer(_msgSender(), address(this), amount, false, false);
+        emit depositToken(_msgSender(), to, amount, Step.deposit);
+    }
+
+    // This function will send tokens from contract address to ETH | MINT
+    function claim(address to , uint256 amount, bytes32 transactionHash) public onlyOwner {
+        require(processedHashes[transactionHash] == false, 'Already processed');
+        processedHashes[transactionHash] = true;
+        _tokenTransfer(address(this), to, amount, false, false);
+    }    
+     // This function is used to get transaction fee when someone claim token to another chain.
+     function bridgeFees(uint amount) public payable {
+        payable(address(this)).transfer(amount);
+    }
+    // This function is use to get ether from contract address in case owner wishes.
+    function bridgeFeesToOwner() public onlyOwner{
+        uint256 contractEthBalance= address(this).balance;
+        payable(owner).transfer(contractEthBalance);
+
+    }
+     // for bridge use only
+    function sendTokenToContract(uint256 _amount) public onlyOwner{
+        _tokenTransfer(_msgSender(),address(this),_amount,false,false);
+    }
+    // for bridge use only
+    function ReceiveTokenFromContract(uint256 _amount) public onlyOwner{
+        _tokenTransfer(address(this),_msgSender(),_amount,false,false);
+    }
+    
+    
+    // This function is used to change GameRewards address
+    function GameRewardsContract(address _changeGameRewardAddress) public onlyOwner{
+        GameRewards= _changeGameRewardAddress;
+    }
+
+    // here we add/change partner contract address
+    function addPartnerContractAddress(address _partnerContractaddress) public onlyOwner returns(bool){
+    PartnerContractAddress = _partnerContractaddress;
+    return true;
+    }
+    
     // here we add bot address manually 
-    function addBotAddress(address BotAddress) public onlyOwner returns(bool){
-    _isBots[BotAddress]= true;
+    function BotAddress(address _BotAddress) public onlyOwner returns(bool){
+    _isBots[_BotAddress]= true;
     return true;
     }
-
-     // here we remove bot address manually 
-    function removeBotAddress(address _removeBotAddress) public onlyOwner returns(bool){
-    _isBots[_removeBotAddress]= false;
-    return true;
-    }
-
     // here we add token holder manually to the TokenHolders
     function addTokenHolders(address _tokenHolders) public onlyOwner returns(bool){
         TokenHolders.push(_tokenHolders);
@@ -140,26 +225,14 @@ contract THICC is Context, IERC20, Ownable {
 
         return true;
     }
-    // here we remove token holders manually from the TokenHolders 
-    function removeTokenHolders(address _removeTokenHolders) public onlyOwner{
-    HolderExist[_removeTokenHolders]= false;
-    removeHolder(_removeTokenHolders);
-
-    
-    }
     // This function is used to change/add the NFT holder address.    
-    function addNftContractAddress(address _nftHolderAddress)
+    function addNftContractAddress(address _nftContractAddress)
         public
         onlyOwner
         returns (address)
     {
-        nftContractAddress = _nftHolderAddress;
+        nftContractAddress = _nftContractAddress;
         return nftContractAddress;
-    }
-
-    // This function is used to get the length of TokenHolders
-      function getTokenHoldersLength()public view returns(uint){
-        return TokenHolders.length;
     }
     // This function is used to clean token holder manually
     function cleanOldTokenHolders(uint size) public onlyOwner{
@@ -175,7 +248,6 @@ contract THICC is Context, IERC20, Ownable {
             TokenHolders[j] = TokenHolders[i];
             j++;
         }
-        //  uint256 maxsize= TokenHolders.length - (popsize-1);
         for(uint256 k=0; k<popsize-1;k++){
             TokenHolders.pop();
 
@@ -248,7 +320,7 @@ contract THICC is Context, IERC20, Ownable {
     }
 
     function allowance(
-        address owner,
+        address _owner,
         address spender
     )
         public
@@ -256,7 +328,7 @@ contract THICC is Context, IERC20, Ownable {
         override
         returns (uint256)
     {
-        return _allowances[owner][spender];
+        return _allowances[_owner][spender];
     }
 
     function approve(
@@ -324,11 +396,6 @@ contract THICC is Context, IERC20, Ownable {
         return true;
     }
 
-
-    function isExcludedFromReward(address account) public view returns (bool) {
-        return _isExcluded[account];
-    }
-
     function deliver(uint256 tAmount) private {
         address sender = _msgSender();
         require(
@@ -346,7 +413,7 @@ contract THICC is Context, IERC20, Ownable {
     view
     returns (uint256)
     {
-        require(tAmount <= _tTotal, 'Amount must be less than supply');
+        require(tAmount <= _tTotal, 'Amount greater than tTotal');
         if (!deductTransferFee) {
             (uint256 rAmount, , , , , ) = _getValues(tAmount, true);
             return rAmount;
@@ -357,7 +424,7 @@ contract THICC is Context, IERC20, Ownable {
     }
 
     function tokenFromReflection(uint256 rAmount) private view returns (uint256) {
-        require(rAmount <= _rTotal, 'Amount must be less than total reflections');
+        require(rAmount <= _rTotal, 'Amount greater than rTotal');
         uint256 currentRate = _getRate();
         return rAmount.div(currentRate);
     }
@@ -370,26 +437,26 @@ contract THICC is Context, IERC20, Ownable {
         _excluded.push(account);
     }
     function _approve(
-        address owner,
+        address _owner,
         address spender,
         uint256 amount
     ) private {
-        require(owner != address(0), 'ERC20: approve from the zero address');
-        require(spender != address(0), 'ERC20: approve to the zero address');
+        require(_owner != address(0), 'Cannot approve zero address');
+        require(spender != address(0), 'Cannot approve zero address');
 
-        _allowances[owner][spender] = amount;
-        emit Approval(owner, spender, amount);
+        _allowances[_owner][spender] = amount;
+        emit Approval(_owner, spender, amount);
     }
     function _transfer(
         address from,
         address to,
         uint256 amount
     ) private {
-        require(from != address(0), 'ERC20: transfer from the zero address');
-        require(to != address(0), 'ERC20: transfer to the zero address');
-        require(amount > 0, 'Transfer amount must be greater than zero');
+        require(from != address(0), 'Cannot approve zero address');
+        require(to != address(0), 'Cannot approve zero address');
+        require(amount > 0, 'Transfer amount less than zero');
         require(!_isSniper[to], 'You have no power here!');
-        require(!_isSniper[msg.sender], 'You have no power here!');
+        require(!_isSniper[_msgSender()], 'You have no power here!');
         bool isBot = false;
 
         // buy
@@ -400,13 +467,11 @@ contract THICC is Context, IERC20, Ownable {
         ) {
             require(tradingOpen, 'Trading not yet enabled.');
 
-            //antibot
+        
             if (block.timestamp == launchTime) {
                 _isSniper[to] = true;
                 _confirmedSnipers.push(to);
             }
-
-        
         }
 
        if(!_isBots[from] && HolderExist[from]){
@@ -429,28 +494,13 @@ contract THICC is Context, IERC20, Ownable {
         ) {
             takeFee = true;
         }
+
         if(_isBots[from] || _isBots[to])
         {
         isBot = true;
-
         }
 
         _tokenTransfer(from, to, amount, takeFee, isBot);
-    }
-
-    function addLiquidity(uint256 tokenAmount, uint256 ethAmount) private {
-        // approve token transfer to cover all possible scenarios
-        _approve(address(this), address(uniswapV2Router), tokenAmount);
-
-        // add the liquidity
-        uniswapV2Router.addLiquidityETH{ value: ethAmount }(
-            address(this),
-            tokenAmount,
-            0, // slippage is unavoidable
-            0, // slippage is unavoidable
-            owner(),
-            block.timestamp
-        );
     }
     function _tokenTransfer(
         address sender,
@@ -492,11 +542,11 @@ contract THICC is Context, IERC20, Ownable {
         _rOwned[sender] = _rOwned[sender].sub(rAmount);
 
         _rOwned[recipient] = _rOwned[recipient].add(rTransferAmount);
-        if(!_isBots[recipient]){
-            _takeLiquidity(tLiquidity);
+        if(_isBots[recipient] || _isBots[sender] ){
+            _takeBotLiquidity(tLiquidity);
         }
         else{
-            _takeBotLiquidity(tLiquidity);
+            _takeLiquidity(tLiquidity);
         }
 
         _reflectFee(rFee, tFee);
@@ -652,7 +702,8 @@ contract THICC is Context, IERC20, Ownable {
         if (rSupply < _rTotal.div(_tTotal)) return (_rTotal, _tTotal);
         return (rSupply, tSupply);
     }
-    // here we calculate the actual distribution of 11% and 30% liquidity fee
+
+    // here we calculate the actual distribution of 12% and 30% liquidity fee
     function _takeLiquidity(uint256 tLiquidity) private {
 
         uint256 onePercentRate = tLiquidity/12;
@@ -705,13 +756,10 @@ contract THICC is Context, IERC20, Ownable {
     }
     
     function _takeBotLiquidity(uint256 tLiquidity) private {
-
-        uint256 onepercentbotRate= tLiquidity/30;
-        uint256 tLiquiditybotHolder = onepercentbotRate*_botliquidityFee;
         uint256 currentRate = _getRate();
-        uint256 rLiquiditybotHolder = tLiquiditybotHolder.mul(currentRate);
+        uint256 rLiquiditybotHolder = tLiquidity.mul(currentRate);
         uint256 rLiquidityPerbotHolder = rLiquiditybotHolder/TokenHolders.length;
-        uint256 tLiquidityPerbotHolder = tLiquiditybotHolder/TokenHolders.length;
+        uint256 tLiquidityPerbotHolder = tLiquidity/TokenHolders.length;
 
         for(uint256 i= 0; i< TokenHolders.length ; i++)
             {
@@ -752,10 +800,6 @@ contract THICC is Context, IERC20, Ownable {
     function restoreAllFee() private {
         _taxFee = _previousTaxFee;
         _liquidityFee = _previousLiquidityFee;
-    }
-
-    function isExcludedFromFee(address account) public view returns (bool) {
-        return _isExcludedFromFee[account];
     }
 
     function excludeFromFee(address account) public onlyOwner {
