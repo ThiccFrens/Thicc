@@ -1,107 +1,109 @@
 //  SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.1;
 
-import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
-import '@openzeppelin/contracts/utils/math/SafeMath.sol';
-import '@openzeppelin/contracts/utils/Address.sol';
-import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol';
-import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol';
-import '@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol';
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
+import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
+import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
+import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 
 contract THICCETH is IERC20 {
     using SafeMath for uint256;
     using Address for address;
 
-    address private ThiccFund=0xF41127F8d8701679D350B33a803bd2a3cA931bC1;
-    address private Competitions=0x8B2029B9c7F95a93Dec977c17203B67b42642362;
-    address private GameRewards=0x9E69859Eeb8E7aC675cC1F5CDFf976849CCf5AF0;
-    address private Marketing=0x0f6Cf3100eA3EA3A3530E28A155EC0711dD05E4e;
-    address private ProjectExpansion=0x87b1b8f0b86F080240a43BF4c433De5a3fC2F4F6;
-    
-    // here we store Token holder who have more then one THICC token.
+    address constant ThiccFund = 0xF41127F8d8701679D350B33a803bd2a3cA931bC1;
+    address constant Competitions = 0x8B2029B9c7F95a93Dec977c17203B67b42642362;
+    address private GameRewards = 0x9E69859Eeb8E7aC675cC1F5CDFf976849CCf5AF0;
+    address constant Marketing = 0x0f6Cf3100eA3EA3A3530E28A155EC0711dD05E4e;
+    address constant ProjectExpansion =
+        0x87b1b8f0b86F080240a43BF4c433De5a3fC2F4F6;
+
+    // here we store Token holder who have more than one THICC token.
     address[] private TokenHolders;
     // here we store partner contract address.
     address private PartnerContractAddress;
     // here we store the NFT holder address
     address private nftContractAddress;
-    // here we transfer burn token whenever transaction is happening and don't change this deadAddress.
-    address private  deadAddress= 0x000000000000000000000000000000000000dEaD;
+    // here we store staking contract address.
+    address private stakingContract;
 
-    uint256 private holderFeePercent = 4;
-    uint256 private nftHolderFeePercent = 2;
-    uint256 private partnerHoldersFeePercent = 5;
-    uint256 private burnTokenPercent=1;
+    uint256 constant holderFeePercent = 2;
+    uint256 constant nftHolderFeePercent = 2;
+    uint256 constant partnerHoldersFeePercent = 5;
+    uint256 constant stakingFeePercent = 1;
 
-    address private owner;
-   
+    address private immutable owner;
+
     mapping(address => bool) private _isBots;
-    mapping(address => bool) private HolderExist;
+    mapping(address => bool) private _HolderExist;
 
     mapping(address => uint256) private _rOwned;
     mapping(address => uint256) private _tOwned;
     mapping(address => mapping(address => uint256)) private _allowances;
-    mapping(address => bool) private _isSniper;
-    address[] private _confirmedSnipers;
 
     mapping(address => bool) private _isExcludedFromFee;
     mapping(address => bool) private _isExcluded;
     address[] private _excluded;
 
-    uint256 private minimumTokenHolder = 1*(10**9);
+    uint256 constant minimumTokenHolder = 1 * (10**_decimals);
     uint256 private constant MAX = ~uint256(0);
-    uint256 private _tTotal = 1000000000000000 * 10**9;
+    uint256 constant _tTotal = 1000000000000000 * 10**_decimals;
     uint256 private _rTotal = (MAX - (MAX % _tTotal));
     uint256 private _tFeeTotal;
 
-    string private _name = 'Thicc Token';
-    string private _symbol = 'THICC';
-    uint8 private _decimals = 9;
+    string constant _name = "Thicc Token";
+    string constant _symbol = "THICC";
+    uint8 constant _decimals = 9;
 
     uint256 private _taxFee;
     uint256 private _previousTaxFee = _taxFee;
-    
-    // This _liquidityFee is for normal user 
-    uint256 private _liquidityFee = 12;
-    // This _botliquidityFee is for bot 
-    uint256 private _botliquidityFee= 30;
-   
-    uint256 private _previousLiquidityFee = _liquidityFee;
 
-    uint256 launchTime;
+    // This _liquidityFee is for normal user
+    uint256 private _liquidityFee = 10;
+    // This _botliquidityFee is for bot
+    uint256 constant _botliquidityFee = 30;
+
+    uint256 private _previousLiquidityFee = _liquidityFee;
 
     IUniswapV2Router02 private uniswapV2Router;
     address private uniswapV2Pair;
 
     bool tradingOpen = false;
-    
+
     mapping(bytes32 => bool) public processedHashes;
 
-    enum Step { deposit }
+    enum Step {
+        deposit
+    }
 
-    event depositToken(address from, address to, uint amount, Step indexed step);
+    event depositToken(
+        address from,
+        address to,
+        uint256 amount,
+        Step indexed step
+    );
 
     constructor() {
         owner = _msgSender();
 
-       uint256 rToken= _rTotal/100;
-       uint256 tToken=  _tTotal/100;
+        uint256 rToken = _rTotal / 100;
+        uint256 tToken = _tTotal / 100;
 
-       uint256 rTokenOnePercent=rToken*1;
-       uint256 tTokenOnePercent=tToken*1;
+        uint256 rTokenOnePercent = rToken * 1;
+        uint256 tTokenOnePercent = tToken * 1;
 
+        uint256 rTokenTwoPercent = rToken * 2;
+        uint256 tTokenTwoPercent = tToken * 2;
 
-       uint256 rTokenTwoPercent=rToken*2;
-       uint256 tTokenTwoPercent=tToken*2;
+        uint256 rTokenFivePercent = rToken * 5;
+        uint256 tTokenFivePercent = tToken * 5;
 
-       uint256 rTokenFivePercent=rToken*5;
-       uint256 tTokenFivePercent=tToken*5;
+        uint256 rTokenNinetyPercent = rToken * 90;
+        uint256 tTokenNinetyPercent = tToken * 90;
 
-       uint256 rTokenNintyPercent=rToken*90;
-       uint256 tTokenNintyPercent=tToken*90;
-
-       
-        _rOwned[_msgSender()] = rTokenNintyPercent;
-        emit Transfer(address(0), _msgSender(), tTokenNintyPercent);
+        _rOwned[_msgSender()] = rTokenNinetyPercent;
+        emit Transfer(address(0), _msgSender(), tTokenNinetyPercent);
 
         _rOwned[ThiccFund] = rTokenOnePercent;
         emit Transfer(address(0), ThiccFund, tTokenOnePercent);
@@ -110,10 +112,10 @@ contract THICCETH is IERC20 {
         emit Transfer(address(0), Competitions, tTokenOnePercent);
 
         _rOwned[GameRewards] = rTokenOnePercent;
-        emit Transfer(address(0),GameRewards, tTokenOnePercent);
+        emit Transfer(address(0), GameRewards, tTokenOnePercent);
 
         _rOwned[Marketing] = rTokenTwoPercent;
-        emit Transfer(address(0),Marketing, tTokenTwoPercent);
+        emit Transfer(address(0), Marketing, tTokenTwoPercent);
 
         _rOwned[ProjectExpansion] = rTokenFivePercent;
         emit Transfer(address(0), ProjectExpansion, tTokenFivePercent);
@@ -122,54 +124,61 @@ contract THICCETH is IERC20 {
         TokenHolders.push(GameRewards);
         TokenHolders.push(Marketing);
         TokenHolders.push(ProjectExpansion);
-       
     }
 
     function initContract() external onlyOwner {
-
         // PancakeSwap: 0x10ED43C718714eb63d5aA57B78B54704E256024E
         // Uniswap V2: 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
         IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(
             0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
         );
-        uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory()).createPair(
-            address(this),
-            _uniswapV2Router.WETH()
-        );
+        uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory())
+            .createPair(address(this), _uniswapV2Router.WETH());
 
         uniswapV2Router = _uniswapV2Router;
 
         _isExcludedFromFee[owner] = true;
         _isExcludedFromFee[address(this)] = true;
-         _isExcludedFromFee[ThiccFund] = true;
+        _isExcludedFromFee[ThiccFund] = true;
         _isExcludedFromFee[Competitions] = true;
-         _isExcludedFromFee[GameRewards] = true;
+        _isExcludedFromFee[GameRewards] = true;
         _isExcludedFromFee[Marketing] = true;
-         _isExcludedFromFee[ProjectExpansion] = true;
-         _isExcludedFromFee[PartnerContractAddress] = true;
-         _isExcludedFromFee[nftContractAddress] = true;
+        _isExcludedFromFee[ProjectExpansion] = true;
+        _isExcludedFromFee[PartnerContractAddress] = true;
+        _isExcludedFromFee[nftContractAddress] = true;
     }
 
     function openTrading() external onlyOwner {
         _liquidityFee = _previousLiquidityFee;
         _taxFee = _previousTaxFee;
         tradingOpen = true;
-        launchTime = block.timestamp;
     }
 
-    function _msgSender() internal view virtual returns(address) {
+    function ContractOwner() public view virtual returns (address) {
+        return owner;
+    }
+
+    function _msgSender() internal view virtual returns (address) {
         return msg.sender;
     }
 
-    modifier onlyOwner {
-        _onlyOwner();
+    modifier onlyOwner() {
+        require(
+            ContractOwner() == _msgSender(),
+            "Ownable: caller is not the owner"
+        );
         _;
     }
 
-    function _onlyOwner() private view {
-        require(_msgSender() == owner);
+    modifier zeroAddress(address _account) {
+        _zeroAddress(_account);
+        _;
     }
-    
+
+    function _zeroAddress(address _account) internal pure {
+        require(_account != address(0), "address can't be zero address");
+    }
+
     // This function will send tokens from wallet to contract address | BURN
     function deposit(address to, uint256 amount) public {
         _tokenTransfer(_msgSender(), address(this), amount, false, false);
@@ -177,153 +186,186 @@ contract THICCETH is IERC20 {
     }
 
     // This function will send tokens from contract address to ETH | MINT
-    function claim(address to , uint256 amount, bytes32 transactionHash) public onlyOwner {
-        require(processedHashes[transactionHash] == false, 'Already processed');
+    function claim(
+        address to,
+        uint256 amount,
+        bytes32 transactionHash
+    ) public onlyOwner {
+        require(processedHashes[transactionHash] == false, "Already processed");
         processedHashes[transactionHash] = true;
         _tokenTransfer(address(this), to, amount, false, false);
-    }    
-     // This function is used to get transaction fee when someone claim token to another chain.
-     function bridgeFees(uint amount) public payable {
-        payable(address(this)).transfer(amount);
     }
-    // This function is use to get ether from contract address in case owner wishes.
-    function bridgeFeesToOwner() public onlyOwner{
-        uint256 contractEthBalance= address(this).balance;
-        payable(owner).transfer(contractEthBalance);
 
+    // This function is used to get transaction fee when someone claim token to another chain.
+    function bridgeFees() public payable {
+        address payable contractAddress = payable(address(this));
+        Address.sendValue(contractAddress, msg.value);
     }
-     // for bridge use only
-    function sendTokenToContract(uint256 _amount) public onlyOwner{
-        _tokenTransfer(_msgSender(),address(this),_amount,false,false);
+
+    // This function is use to get ether from contract address in case owner wishes.
+    function bridgeFeesToOwner() public onlyOwner {
+        uint256 contractEthBalance = address(this).balance;
+        address payable ownerAddress = payable(owner);
+        Address.sendValue(ownerAddress, contractEthBalance);
     }
+
     // for bridge use only
-    function ReceiveTokenFromContract(uint256 _amount) public onlyOwner{
-        _tokenTransfer(address(this),_msgSender(),_amount,false,false);
+    function sendTokenToContract(uint256 _amount) external onlyOwner {
+        _tokenTransfer(_msgSender(), address(this), _amount, false, false);
     }
-    
-    
+
+    // for bridge use only
+    function ReceiveTokenFromContract(uint256 _amount) external onlyOwner {
+        _tokenTransfer(address(this), _msgSender(), _amount, false, false);
+    }
+
+    // This function is used to change Staking Contract address
+    function addstakingContract(address _stakingAddress)
+        external
+        onlyOwner
+        zeroAddress(_stakingAddress)
+    {
+        stakingContract = _stakingAddress;
+    }
+
     // This function is used to change GameRewards address
-    function GameRewardsContract(address _changeGameRewardAddress) public onlyOwner{
-        GameRewards= _changeGameRewardAddress;
+    function GameRewardsContract(address _changeGameRewardAddress)
+        external
+        onlyOwner
+        zeroAddress(_changeGameRewardAddress)
+    {
+        GameRewards = _changeGameRewardAddress;
     }
 
     // here we add/change partner contract address
-    function addPartnerContractAddress(address _partnerContractaddress) public onlyOwner returns(bool){
-    PartnerContractAddress = _partnerContractaddress;
-    return true;
+    function addPartnerContractAddress(address _partnerContractaddress)
+        external
+        onlyOwner
+        zeroAddress(_partnerContractaddress)
+        returns (bool)
+    {
+        PartnerContractAddress = _partnerContractaddress;
+        return true;
     }
-    
-    // here we add bot address manually 
-    function BotAddress(address _BotAddress) public onlyOwner returns(bool){
-    _isBots[_BotAddress]= true;
-    return true;
+
+    // here we add bot address manually
+    function BotAddress(address _BotAddress) external onlyOwner returns (bool) {
+        _isBots[_BotAddress] = true;
+        return true;
     }
+
     // here we add token holder manually to the TokenHolders
-    function addTokenHolders(address _tokenHolders) public onlyOwner returns(bool){
+    function addTokenHolders(address _tokenHolders)
+        external
+        onlyOwner
+        zeroAddress(_tokenHolders)
+        returns (bool)
+    {
         TokenHolders.push(_tokenHolders);
-        HolderExist[_tokenHolders] = true;
+        _HolderExist[_tokenHolders] = true;
 
         return true;
     }
-    // This function is used to change/add the NFT holder address.    
+
+    // This function is used to change/add the NFT holder address.
     function addNftContractAddress(address _nftContractAddress)
-        public
+        external
         onlyOwner
+        zeroAddress(_nftContractAddress)
         returns (address)
     {
         nftContractAddress = _nftContractAddress;
         return nftContractAddress;
     }
+
     // This function is used to clean token holder manually
-    function cleanOldTokenHolders(uint size) public onlyOwner{
-    uint256 popsize= size;
-    address deleteaddress;
-    for (uint256 i=0; i<size;i++){
-        deleteaddress=TokenHolders[i];
-        HolderExist[deleteaddress]= false;
+    function cleanOldTokenHolders(uint256 size) external onlyOwner {
+        address deleteaddress;
+        for (uint256 i = 0; i < size; i++) {
+            deleteaddress = TokenHolders[i];
+            _HolderExist[deleteaddress] = false;
         }
-        uint256 j=0;
-        for (uint256 i = size-1; i <TokenHolders.length; i++) {
-            
+        uint256 j = 0;
+        for (uint256 i = size; i < TokenHolders.length; i++) {
             TokenHolders[j] = TokenHolders[i];
             j++;
         }
-        for(uint256 k=0; k<popsize-1;k++){
+        for (uint256 k = 0; k < size - 1; k++) {
             TokenHolders.pop();
-
         }
     }
-    //Removing the holder on demand or only creator can call this function in case he thinks some of the liquidity pool or other address should be removed.
-    function removeHolder(address holderAddress) private returns (bool) {
-        uint256 holderindex;
-        
 
+    //Removing the holder on demand or only creator can call this function in case he thinks some of the liquidity pool or other address should be removed.
+    function _removeHolder(address holderAddress) private returns (bool) {
+        uint256 holderindex = TokenHolders.length;
         for (uint256 i = 0; i < TokenHolders.length; i++) {
             if (TokenHolders[i] == holderAddress) {
                 holderindex = i;
                 break;
             }
         }
-        if (holderindex < 0 || holderindex >= TokenHolders.length) {
+        if (holderindex == TokenHolders.length) {
             return false;
-        } else if (TokenHolders.length == 1) {
+        }
+        if (TokenHolders.length == 1) {
             TokenHolders.pop();
+            _HolderExist[holderAddress] = false;
             return true;
         } else if (holderindex == TokenHolders.length - 1) {
             TokenHolders.pop();
+            _HolderExist[holderAddress] = false;
             return true;
         } else {
             for (uint256 i = holderindex; i < TokenHolders.length - 1; i++) {
                 TokenHolders[i] = TokenHolders[i + 1];
             }
             TokenHolders.pop();
+            _HolderExist[holderAddress] = false;
             return true;
         }
     }
 
-    function name() public view returns (string memory) {
+    function name() external pure returns (string memory) {
         return _name;
     }
 
-    function symbol() public view returns (string memory) {
+    function symbol() external pure returns (string memory) {
         return _symbol;
     }
 
-    function decimals() public view returns (uint8) {
+    function decimals() external pure returns (uint8) {
         return _decimals;
     }
 
-    function totalSupply() public view override returns (uint256) {
+    function totalSupply() external pure override returns (uint256) {
         return _tTotal;
     }
 
     function balanceOf(address account) public view override returns (uint256) {
         if (_isExcluded[account]) return _tOwned[account];
-        return tokenFromReflection(_rOwned[account]);
+        return _tokenFromReflection(_rOwned[account]);
     }
-    
+
     function transfer(address recipient, uint256 amount)
-        public
+        external
         override
         returns (bool)
     {
-        
-     _transfer(_msgSender(), recipient, amount);
+        _transfer(_msgSender(), recipient, amount);
 
-    if(amount > minimumTokenHolder && !_isBots[recipient] && !HolderExist[recipient])
-    {
-        TokenHolders.push(recipient);
-        HolderExist[recipient] = true;
-        
-    }
+        if (
+            amount >= minimumTokenHolder &&
+            !_isBots[recipient] &&
+            !_HolderExist[recipient]
+        ) {
+            TokenHolders.push(recipient);
+            _HolderExist[recipient] = true;
+        }
         return true;
     }
 
-    function allowance(
-        address _owner,
-        address spender
-    )
-        public
+    function allowance(address _owner, address spender)
+        external
         view
         override
         returns (uint256)
@@ -331,11 +373,8 @@ contract THICCETH is IERC20 {
         return _allowances[_owner][spender];
     }
 
-    function approve(
-        address spender,
-        uint256 amount
-    )
-        public
+    function approve(address spender, uint256 amount)
+        external
         override
         returns (bool)
     {
@@ -347,28 +386,21 @@ contract THICCETH is IERC20 {
         address sender,
         address recipient,
         uint256 amount
-    )
-        public
-        override
-        returns (bool)
-    {
+    ) external override returns (bool) {
         _transfer(sender, recipient, amount);
         _approve(
             sender,
             _msgSender(),
             _allowances[sender][_msgSender()].sub(
                 amount,
-                'ERC20: transfer amount exceeds allowance'
+                "ERC20: transfer amount exceeds allowance"
             )
         );
         return true;
     }
 
-    function increaseAllowance(
-        address spender,
-        uint256 addedValue
-    )
-        public
+    function increaseAllowance(address spender, uint256 addedValue)
+        external
         virtual
         returns (bool)
     {
@@ -381,110 +413,79 @@ contract THICCETH is IERC20 {
     }
 
     function decreaseAllowance(address spender, uint256 subtractedValue)
-    public
-    virtual
-    returns (bool)
+        external
+        virtual
+        returns (bool)
     {
         _approve(
             _msgSender(),
             spender,
             _allowances[_msgSender()][spender].sub(
                 subtractedValue,
-                'ERC20: decreased allowance below zero'
+                "ERC20: decreased allowance below zero"
             )
         );
         return true;
     }
 
-    function deliver(uint256 tAmount) private {
-        address sender = _msgSender();
-        require(
-            !_isExcluded[sender],
-            'Excluded addresses cannot call this function'
-        );
-        (uint256 rAmount, , , , , ) = _getValues(tAmount,true);
-        _rOwned[sender] = _rOwned[sender].sub(rAmount);
-        _rTotal = _rTotal.sub(rAmount);
-        _tFeeTotal = _tFeeTotal.add(tAmount);
-    }
-
-    function reflectionFromToken(uint256 tAmount, bool deductTransferFee)
-    private
-    view
-    returns (uint256)
+    function _tokenFromReflection(uint256 rAmount)
+        private
+        view
+        returns (uint256)
     {
-        require(tAmount <= _tTotal, 'Amount greater than tTotal');
-        if (!deductTransferFee) {
-            (uint256 rAmount, , , , , ) = _getValues(tAmount, true);
-            return rAmount;
-        } else {
-            (, uint256 rTransferAmount, , , , ) = _getValues(tAmount,true);
-            return rTransferAmount;
-        }
-    }
-
-    function tokenFromReflection(uint256 rAmount) private view returns (uint256) {
-        require(rAmount <= _rTotal, 'Amount greater than rTotal');
+        require(rAmount <= _rTotal, "Amount greater than rTotal");
         uint256 currentRate = _getRate();
         return rAmount.div(currentRate);
     }
-    function excludeFromReward(address account) public onlyOwner {
-        require(!_isExcluded[account], 'Account is already excluded');
+
+    function excludeFromReward(address account) external onlyOwner {
+        require(!_isExcluded[account], "Account is already excluded");
         if (_rOwned[account] > 0) {
-            _tOwned[account] = tokenFromReflection(_rOwned[account]);
+            _tOwned[account] = _tokenFromReflection(_rOwned[account]);
         }
         _isExcluded[account] = true;
         _excluded.push(account);
     }
+
     function _approve(
         address _owner,
         address spender,
         uint256 amount
     ) private {
-        require(_owner != address(0), 'Cannot approve zero address');
-        require(spender != address(0), 'Cannot approve zero address');
+        require(_owner != address(0), "Cannot approve zero address");
+        require(spender != address(0), "Cannot approve zero address");
 
         _allowances[_owner][spender] = amount;
         emit Approval(_owner, spender, amount);
     }
+
     function _transfer(
         address from,
         address to,
         uint256 amount
     ) private {
-        require(from != address(0), 'Cannot approve zero address');
-        require(to != address(0), 'Cannot approve zero address');
-        require(amount > 0, 'Transfer amount less than zero');
-        require(!_isSniper[to], 'You have no power here!');
-        require(!_isSniper[_msgSender()], 'You have no power here!');
+        require(from != address(0), "ERC20: transfer from the zero address");
+        require(to != address(0), "ERC20: transfer to the zero address");
+        require(amount > 0, "Transfer amount must be greater than zero");
         bool isBot = false;
 
         // buy
         if (
             from == uniswapV2Pair &&
             to != address(uniswapV2Router) &&
-            !_isExcludedFromFee[to] 
+            !_isExcludedFromFee[to]
         ) {
-            require(tradingOpen, 'Trading not yet enabled.');
-
-        
-            if (block.timestamp == launchTime) {
-                _isSniper[to] = true;
-                _confirmedSnipers.push(to);
-            }
+            require(tradingOpen, "Trading not yet enabled.");
         }
 
-       if(!_isBots[from] && HolderExist[from]){
+        if (!_isBots[from] && _HolderExist[from]) {
             uint256 beforeTransferBalance = balanceOf(from);
             uint256 remainingTokenBalance = beforeTransferBalance - amount;
-            if(remainingTokenBalance < minimumTokenHolder)
-            {
-                removeHolder(from);
-                HolderExist[from] = false;
-                        
+            if (remainingTokenBalance < minimumTokenHolder) {
+                _removeHolder(from);
             }
         }
-                
+
         bool takeFee = false;
 
         //take fee only on swaps
@@ -495,13 +496,13 @@ contract THICCETH is IERC20 {
             takeFee = true;
         }
 
-        if(_isBots[from] || _isBots[to])
-        {
-        isBot = true;
+        if (_isBots[from] || _isBots[to]) {
+            isBot = true;
         }
 
         _tokenTransfer(from, to, amount, takeFee, isBot);
     }
+
     function _tokenTransfer(
         address sender,
         address recipient,
@@ -509,7 +510,7 @@ contract THICCETH is IERC20 {
         bool takeFee,
         bool isBot
     ) private {
-        if (!takeFee) removeAllFee();
+        if (!takeFee) _removeAllFee();
 
         if (_isExcluded[sender] && !_isExcluded[recipient]) {
             _transferFromExcluded(sender, recipient, amount, isBot);
@@ -521,9 +522,8 @@ contract THICCETH is IERC20 {
             _transferStandard(sender, recipient, amount, isBot);
         }
 
-        if (!takeFee) restoreAllFee();
+        if (!takeFee) _restoreAllFee();
     }
-    
 
     function _transferStandard(
         address sender,
@@ -532,26 +532,27 @@ contract THICCETH is IERC20 {
         bool isBot
     ) private {
         (
-        uint256 rAmount,
-        uint256 rTransferAmount,
-        uint256 rFee,
-        uint256 tTransferAmount,
-        uint256 tFee,
-        uint256 tLiquidity
+            uint256 rAmount,
+            uint256 rTransferAmount,
+            uint256 rFee,
+            uint256 tTransferAmount,
+            uint256 tFee,
+            uint256 tLiquidity
         ) = _getValues(tAmount, isBot);
         _rOwned[sender] = _rOwned[sender].sub(rAmount);
 
         _rOwned[recipient] = _rOwned[recipient].add(rTransferAmount);
-        if(_isBots[recipient] || _isBots[sender] ){
+
+        if (isBot) {
             _takeBotLiquidity(tLiquidity);
-        }
-        else{
+        } else {
             _takeLiquidity(tLiquidity);
         }
 
         _reflectFee(rFee, tFee);
         emit Transfer(sender, recipient, tTransferAmount);
     }
+
     function _transferToExcluded(
         address sender,
         address recipient,
@@ -559,12 +560,12 @@ contract THICCETH is IERC20 {
         bool isBot
     ) private {
         (
-        uint256 rAmount,
-        uint256 rTransferAmount,
-        uint256 rFee,
-        uint256 tTransferAmount,
-        uint256 tFee,
-        uint256 tLiquidity
+            uint256 rAmount,
+            uint256 rTransferAmount,
+            uint256 rFee,
+            uint256 tTransferAmount,
+            uint256 tFee,
+            uint256 tLiquidity
         ) = _getValues(tAmount, isBot);
         _rOwned[sender] = _rOwned[sender].sub(rAmount);
         _tOwned[recipient] = _tOwned[recipient].add(tTransferAmount);
@@ -581,12 +582,12 @@ contract THICCETH is IERC20 {
         bool isBot
     ) private {
         (
-        uint256 rAmount,
-        uint256 rTransferAmount,
-        uint256 rFee,
-        uint256 tTransferAmount,
-        uint256 tFee,
-        uint256 tLiquidity
+            uint256 rAmount,
+            uint256 rTransferAmount,
+            uint256 rFee,
+            uint256 tTransferAmount,
+            uint256 tFee,
+            uint256 tLiquidity
         ) = _getValues(tAmount, isBot);
         _tOwned[sender] = _tOwned[sender].sub(tAmount);
         _rOwned[sender] = _rOwned[sender].sub(rAmount);
@@ -603,12 +604,12 @@ contract THICCETH is IERC20 {
         bool isBot
     ) private {
         (
-        uint256 rAmount,
-        uint256 rTransferAmount,
-        uint256 rFee,
-        uint256 tTransferAmount,
-        uint256 tFee,
-        uint256 tLiquidity
+            uint256 rAmount,
+            uint256 rTransferAmount,
+            uint256 rFee,
+            uint256 tTransferAmount,
+            uint256 tFee,
+            uint256 tLiquidity
         ) = _getValues(tAmount, isBot);
         _tOwned[sender] = _tOwned[sender].sub(tAmount);
         _rOwned[sender] = _rOwned[sender].sub(rAmount);
@@ -619,47 +620,55 @@ contract THICCETH is IERC20 {
         emit Transfer(sender, recipient, tTransferAmount);
     }
 
-    
     function _reflectFee(uint256 rFee, uint256 tFee) private {
         _rTotal = _rTotal.sub(rFee);
         _tFeeTotal = _tFeeTotal.add(tFee);
     }
 
     function _getValues(uint256 tAmount, bool isBot)
-    private
-    view
-    returns (
-        uint256,
-        uint256,
-        uint256,
-        uint256,
-        uint256,
-        uint256
-    )
+        private
+        view
+        returns (
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            uint256
+        )
     {
-        (uint256 tTransferAmount, uint256 tFee, uint256 tLiquidity) = _getTValues(
-            tAmount, isBot
-        );
+        (
+            uint256 tTransferAmount,
+            uint256 tFee,
+            uint256 tLiquidity
+        ) = _getTValues(tAmount, isBot);
         (uint256 rAmount, uint256 rTransferAmount, uint256 rFee) = _getRValues(
             tAmount,
             tFee,
             tLiquidity,
             _getRate()
         );
-        return (rAmount, rTransferAmount, rFee, tTransferAmount, tFee, tLiquidity);
+        return (
+            rAmount,
+            rTransferAmount,
+            rFee,
+            tTransferAmount,
+            tFee,
+            tLiquidity
+        );
     }
 
     function _getTValues(uint256 tAmount, bool isBot)
-    private
-    view
-    returns (
-        uint256,
-        uint256,
-        uint256
-    )
+        private
+        view
+        returns (
+            uint256,
+            uint256,
+            uint256
+        )
     {
-        uint256 tFee = calculateTaxFee(tAmount);
-        uint256 tLiquidity = calculateLiquidityFee(tAmount,isBot);
+        uint256 tFee = _calculateTaxFee(tAmount);
+        uint256 tLiquidity = _calculateLiquidityFee(tAmount, isBot);
         uint256 tTransferAmount = tAmount.sub(tFee).sub(tLiquidity);
         return (tTransferAmount, tFee, tLiquidity);
     }
@@ -670,13 +679,13 @@ contract THICCETH is IERC20 {
         uint256 tLiquidity,
         uint256 currentRate
     )
-    private
-    pure
-    returns (
-        uint256,
-        uint256,
-        uint256
-    )
+        private
+        pure
+        returns (
+            uint256,
+            uint256,
+            uint256
+        )
     {
         uint256 rAmount = tAmount.mul(currentRate);
         uint256 rFee = tFee.mul(currentRate);
@@ -694,8 +703,10 @@ contract THICCETH is IERC20 {
         uint256 rSupply = _rTotal;
         uint256 tSupply = _tTotal;
         for (uint256 i = 0; i < _excluded.length; i++) {
-            if (_rOwned[_excluded[i]] > rSupply || _tOwned[_excluded[i]] > tSupply)
-                return (_rTotal, _tTotal);
+            if (
+                _rOwned[_excluded[i]] > rSupply ||
+                _tOwned[_excluded[i]] > tSupply
+            ) return (_rTotal, _tTotal);
             rSupply = rSupply.sub(_rOwned[_excluded[i]]);
             tSupply = tSupply.sub(_tOwned[_excluded[i]]);
         }
@@ -703,91 +714,105 @@ contract THICCETH is IERC20 {
         return (rSupply, tSupply);
     }
 
-    // here we calculate the actual distribution of 12% and 30% liquidity fee
+    // here we calculate the actual distribution of 10% and 30% liquidity fee
     function _takeLiquidity(uint256 tLiquidity) private {
+        uint256 onePercentRate = tLiquidity / 10;
+        uint256 tLiquidityHolder = onePercentRate * holderFeePercent;
+        uint256 tLiquidityPartnerHolder = onePercentRate *
+            partnerHoldersFeePercent;
+        uint256 tLiquidityNftHolder = onePercentRate * nftHolderFeePercent;
+        uint256 tLiquidityStakingAmount = onePercentRate * stakingFeePercent;
 
-        uint256 onePercentRate = tLiquidity/12;
-        uint256 tLiquidityHolder = onePercentRate*holderFeePercent;
-        uint256 tLiquidityPartnerHolder = onePercentRate*partnerHoldersFeePercent;
-        uint256 tLiquidityNftHolder=  onePercentRate*nftHolderFeePercent;
-        uint256 tLiquidityBurnAmount= onePercentRate*burnTokenPercent;
-
-        // here we calculate 4% liquidity for token holder 
+        // here we calculate 2% liquidity for token holder
         uint256 currentRate = _getRate();
         uint256 rLiquidityHolder = tLiquidityHolder.mul(currentRate);
-        uint256 rLiquidityPerHolder = rLiquidityHolder/TokenHolders.length;
-        uint256 tLiquidityPerHolder = tLiquidityHolder/TokenHolders.length;
-        // here we calculate 5% liquidity for partner holder 
+        uint256 rLiquidityPerHolder = rLiquidityHolder / TokenHolders.length;
+        uint256 tLiquidityPerHolder = tLiquidityHolder / TokenHolders.length;
+        // here we calculate 5% liquidity for partner holder
         uint256 rLiquidityPartner = tLiquidityPartnerHolder.mul(currentRate);
 
-        // here we calculate 1% liquidity for brun token on every swap(sell,buy)
+        // here we calculate 1% liquidity for staking contract.
 
-        uint256 rLiquidityBurn= tLiquidityBurnAmount.mul(currentRate);
+        uint256 rLiquidityStaking = tLiquidityStakingAmount.mul(currentRate);
 
-        // here we calculate 2% liquidity for NFT holder 
+        // here we calculate 2% liquidity for NFT holder
 
-        uint256 rLiquidityNFT= tLiquidityNftHolder.mul(currentRate);
-
+        uint256 rLiquidityNFT = tLiquidityNftHolder.mul(currentRate);
 
         // here we transfer 2% to NFT contract address
-        _rOwned[nftContractAddress] = _rOwned[nftContractAddress].add(rLiquidityNFT);
-    
-        _tOwned[nftContractAddress] = _tOwned[nftContractAddress].add(tLiquidityNftHolder);
-        
-        // here we burn 2% token on every swap(buy and sell)
-        _rOwned[deadAddress] = _rOwned[deadAddress].add(rLiquidityBurn);
-        
-        _tOwned[deadAddress] = _tOwned[deadAddress].add(tLiquidityBurnAmount);
-        
+        _rOwned[nftContractAddress] = _rOwned[nftContractAddress].add(
+            rLiquidityNFT
+        );
+
+        _tOwned[nftContractAddress] = _tOwned[nftContractAddress].add(
+            tLiquidityNftHolder
+        );
+
+        // here we transfer 1% to staking contract address (buy and sell).
+        _rOwned[stakingContract] = _rOwned[stakingContract].add(
+            rLiquidityStaking
+        );
+
+        _tOwned[stakingContract] = _tOwned[stakingContract].add(
+            tLiquidityStakingAmount
+        );
+
         //  here we transfer 4% to token holders
 
-        for(uint256 i= 0; i< TokenHolders.length ; i++)
-        {
-        _rOwned[TokenHolders[i]] = _rOwned[TokenHolders[i]].add(rLiquidityPerHolder);
-        
-        _tOwned[TokenHolders[i]] = _tOwned[TokenHolders[i]].add(tLiquidityPerHolder);
+        for (uint256 i = 0; i < TokenHolders.length; i++) {
+            _rOwned[TokenHolders[i]] = _rOwned[TokenHolders[i]].add(
+                rLiquidityPerHolder
+            );
+
+            _tOwned[TokenHolders[i]] = _tOwned[TokenHolders[i]].add(
+                tLiquidityPerHolder
+            );
         }
         //  here we transfer 5% to PartnerContractAddress  holders
 
-        _rOwned[PartnerContractAddress] = _rOwned[PartnerContractAddress].add(rLiquidityPartner);
-        _tOwned[PartnerContractAddress] = _tOwned[PartnerContractAddress].add(tLiquidityPartnerHolder); 
-            
-        
+        _rOwned[PartnerContractAddress] = _rOwned[PartnerContractAddress].add(
+            rLiquidityPartner
+        );
+        _tOwned[PartnerContractAddress] = _tOwned[PartnerContractAddress].add(
+            tLiquidityPartnerHolder
+        );
     }
-    
+
     function _takeBotLiquidity(uint256 tLiquidity) private {
         uint256 currentRate = _getRate();
         uint256 rLiquiditybotHolder = tLiquidity.mul(currentRate);
-        uint256 rLiquidityPerbotHolder = rLiquiditybotHolder/TokenHolders.length;
-        uint256 tLiquidityPerbotHolder = tLiquidity/TokenHolders.length;
+        uint256 rLiquidityPerbotHolder = rLiquiditybotHolder /
+            TokenHolders.length;
+        uint256 tLiquidityPerbotHolder = tLiquidity / TokenHolders.length;
 
-        for(uint256 i= 0; i< TokenHolders.length ; i++)
-            {
-            _rOwned[TokenHolders[i]] = _rOwned[TokenHolders[i]].add(rLiquidityPerbotHolder);
-               
-            _tOwned[TokenHolders[i]] = _tOwned[TokenHolders[i]].add(tLiquidityPerbotHolder);
-            }
+        for (uint256 i = 0; i < TokenHolders.length; i++) {
+            _rOwned[TokenHolders[i]] = _rOwned[TokenHolders[i]].add(
+                rLiquidityPerbotHolder
+            );
+
+            _tOwned[TokenHolders[i]] = _tOwned[TokenHolders[i]].add(
+                tLiquidityPerbotHolder
+            );
         }
-        
-    function calculateTaxFee(uint256 _amount) private view returns (uint256) {
+    }
+
+    function _calculateTaxFee(uint256 _amount) private view returns (uint256) {
         return _amount.mul(_taxFee).div(10**2);
     }
 
-    function calculateLiquidityFee(uint256 _amount, bool isBot)
-    private
-    view
-    returns (uint256)
+    function _calculateLiquidityFee(uint256 _amount, bool isBot)
+        private
+        view
+        returns (uint256)
     {
-        if(isBot)
-        {
-        return _amount.mul(_botliquidityFee).div(10**2);
-        }
-        else{
+        if (isBot) {
+            return _amount.mul(_botliquidityFee).div(10**2);
+        } else {
             return _amount.mul(_liquidityFee).div(10**2);
         }
     }
 
-    function removeAllFee() private {
+    function _removeAllFee() private {
         if (_taxFee == 0 && _liquidityFee == 0) return;
 
         _previousTaxFee = _taxFee;
@@ -797,20 +822,15 @@ contract THICCETH is IERC20 {
         _liquidityFee = 0;
     }
 
-    function restoreAllFee() private {
+    function _restoreAllFee() private {
         _taxFee = _previousTaxFee;
         _liquidityFee = _previousLiquidityFee;
     }
 
-    function excludeFromFee(address account) public onlyOwner {
+    function excludeFromFee(address account) external onlyOwner {
         _isExcludedFromFee[account] = true;
     }
 
-    function includeInFee(address account) public onlyOwner {
-        _isExcludedFromFee[account] = false;
-    }
-
-    //to recieve ETH from uniswapV2Router when swaping
+    //to receive ETH from uniswapV2Router when swapping
     receive() external payable {}
-    
 }
