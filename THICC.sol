@@ -20,7 +20,7 @@ contract THICCETH is IERC20 {
         0x87b1b8f0b86F080240a43BF4c433De5a3fC2F4F6;
 
     // here we store Token holder who have more than one THICC token.
-    address[] private TokenHolders;
+    address[] public TokenHolders;
     // here we store partner contract address.
     address private PartnerContractAddress;
     // here we store the NFT holder address
@@ -36,7 +36,7 @@ contract THICCETH is IERC20 {
     address private immutable owner;
 
     mapping(address => bool) private _isBots;
-    mapping(address => bool) private _HolderExist;
+    mapping(address => bool) public _HolderExist;
 
     mapping(address => uint256) private _rOwned;
     mapping(address => uint256) private _tOwned;
@@ -279,7 +279,7 @@ contract THICCETH is IERC20 {
     }
 
     // This function is used to clean token holder manually
-    function cleanOldTokenHolders(uint256 size) external onlyOwner {
+    function cleanOldTokenHolders(uint256 size) public  {
         address deleteaddress;
         for (uint256 i = 0; i < size; i++) {
             deleteaddress = TokenHolders[i];
@@ -290,7 +290,7 @@ contract THICCETH is IERC20 {
             TokenHolders[j] = TokenHolders[i];
             j++;
         }
-        for (uint256 k = 0; k < size - 1; k++) {
+        for (uint256 k = 0; k < size; k++) {
             TokenHolders.pop();
         }
     }
@@ -353,8 +353,11 @@ contract THICCETH is IERC20 {
     {
         _transfer(_msgSender(), recipient, amount);
 
-        if (
-            amount >= minimumTokenHolder &&
+       uint256 balanceOfUser= balanceOf(recipient);
+       balanceOfUser= balanceOfUser + amount;
+       
+       if (
+            balanceOfUser >= minimumTokenHolder &&
             !_isBots[recipient] &&
             !_HolderExist[recipient]
         ) {
