@@ -20,13 +20,23 @@ contract THICCETH is IERC20 {
         0x87b1b8f0b86F080240a43BF4c433De5a3fC2F4F6;
 
     // here we store Token holder who have more than one THICC token.
-    address[] public TokenHolders;
+    address[] private TokenHolders;
     // here we store partner contract address.
-    address private PartnerContractAddress;
+    address private  PartnerContractAddress;
     // here we store the NFT holder address
     address private nftContractAddress;
     // here we store staking contract address.
     address private stakingContract;
+    // here we store bridge contract address.
+    address private ethBridgeContract;
+
+    event GameRewardsContract(address indexed _account);
+    event AddPartner(address indexed _account);
+    event BotAddress(address indexed _account);
+    event AddTokenHolder(address indexed _account);
+    event AddNftContract(address indexed _account);
+    event AddStakingContract(address indexed _account);
+    event AddBridgeContract(address indexed _account);
 
     uint256 constant holderFeePercent = 2;
     uint256 constant nftHolderFeePercent = 2;
@@ -36,7 +46,7 @@ contract THICCETH is IERC20 {
     address private immutable owner;
 
     mapping(address => bool) private _isBots;
-    mapping(address => bool) public _HolderExist;
+    mapping(address => bool) private _HolderExist;
 
     mapping(address => uint256) private _rOwned;
     mapping(address => uint256) private _tOwned;
@@ -70,19 +80,6 @@ contract THICCETH is IERC20 {
     address private uniswapV2Pair;
 
     bool tradingOpen = false;
-
-    mapping(bytes32 => bool) public processedHashes;
-
-    enum Step {
-        deposit
-    }
-
-    event depositToken(
-        address from,
-        address to,
-        uint256 amount,
-        Step indexed step
-    );
 
     constructor() {
         owner = _msgSender();
@@ -146,6 +143,8 @@ contract THICCETH is IERC20 {
         _isExcludedFromFee[ProjectExpansion] = true;
         _isExcludedFromFee[PartnerContractAddress] = true;
         _isExcludedFromFee[nftContractAddress] = true;
+        _isExcludedFromFee[stakingContract] = true;
+        _isExcludedFromFee[ethBridgeContract] = true;
     }
 
     function openTrading() external onlyOwner {
@@ -171,52 +170,8 @@ contract THICCETH is IERC20 {
     }
 
     modifier zeroAddress(address _account) {
-        _zeroAddress(_account);
-        _;
-    }
-
-    function _zeroAddress(address _account) internal pure {
         require(_account != address(0), "address can't be zero address");
-    }
-
-    // This function will send tokens from wallet to contract address | BURN
-    function deposit(address to, uint256 amount) public {
-        _tokenTransfer(_msgSender(), address(this), amount, false, false);
-        emit depositToken(_msgSender(), to, amount, Step.deposit);
-    }
-
-    // This function will send tokens from contract address to ETH | MINT
-    function claim(
-        address to,
-        uint256 amount,
-        bytes32 transactionHash
-    ) public onlyOwner {
-        require(processedHashes[transactionHash] == false, "Already processed");
-        processedHashes[transactionHash] = true;
-        _tokenTransfer(address(this), to, amount, false, false);
-    }
-
-    // This function is used to get transaction fee when someone claim token to another chain.
-    function bridgeFees() public payable {
-        address payable contractAddress = payable(address(this));
-        Address.sendValue(contractAddress, msg.value);
-    }
-
-    // This function is use to get ether from contract address in case owner wishes.
-    function bridgeFeesToOwner() public onlyOwner {
-        uint256 contractEthBalance = address(this).balance;
-        address payable ownerAddress = payable(owner);
-        Address.sendValue(ownerAddress, contractEthBalance);
-    }
-
-    // for bridge use only
-    function sendTokenToContract(uint256 _amount) external onlyOwner {
-        _tokenTransfer(_msgSender(), address(this), _amount, false, false);
-    }
-
-    // for bridge use only
-    function ReceiveTokenFromContract(uint256 _amount) external onlyOwner {
-        _tokenTransfer(address(this), _msgSender(), _amount, false, false);
+        _;
     }
 
     // This function is used to change Staking Contract address
@@ -226,15 +181,27 @@ contract THICCETH is IERC20 {
         zeroAddress(_stakingAddress)
     {
         stakingContract = _stakingAddress;
+        emit AddStakingContract(_stakingAddress);
+    }
+
+    // This function is used to change bridge Contract address
+    function addBridgeContract(address _bridgeAddress)
+        external
+        onlyOwner
+        zeroAddress(_bridgeAddress)
+    {
+        ethBridgeContract = _bridgeAddress;
+        emit AddBridgeContract(_bridgeAddress);
     }
 
     // This function is used to change GameRewards address
-    function GameRewardsContract(address _changeGameRewardAddress)
+    function gameRewardsContract(address _changeGameRewardAddress)
         external
         onlyOwner
         zeroAddress(_changeGameRewardAddress)
     {
         GameRewards = _changeGameRewardAddress;
+        emit GameRewardsContract(_changeGameRewardAddress);
     }
 
     // here we add/change partner contract address
@@ -245,12 +212,20 @@ contract THICCETH is IERC20 {
         returns (bool)
     {
         PartnerContractAddress = _partnerContractaddress;
+        emit AddPartner(_partnerContractaddress);
         return true;
+        
     }
 
     // here we add bot address manually
-    function BotAddress(address _BotAddress) external onlyOwner returns (bool) {
+    function botAddress(address _BotAddress)
+        external
+        zeroAddress(_BotAddress)
+        onlyOwner
+        returns (bool)
+    {
         _isBots[_BotAddress] = true;
+        emit BotAddress(_BotAddress);
         return true;
     }
 
@@ -263,6 +238,7 @@ contract THICCETH is IERC20 {
     {
         TokenHolders.push(_tokenHolders);
         _HolderExist[_tokenHolders] = true;
+        emit AddTokenHolder(_tokenHolders);
 
         return true;
     }
@@ -272,14 +248,15 @@ contract THICCETH is IERC20 {
         external
         onlyOwner
         zeroAddress(_nftContractAddress)
-        returns (address)
+        returns (bool)
     {
         nftContractAddress = _nftContractAddress;
-        return nftContractAddress;
+        emit AddNftContract(_nftContractAddress);
+        return true;
     }
 
-    // This function is used to clean token holder manually
-    function cleanOldTokenHolders(uint256 size) public  {
+    // This function is used to clean token holder.
+    function cleanOldTokenHolders(uint256 size) external onlyOwner {
         address deleteaddress;
         for (uint256 i = 0; i < size; i++) {
             deleteaddress = TokenHolders[i];
@@ -353,10 +330,10 @@ contract THICCETH is IERC20 {
     {
         _transfer(_msgSender(), recipient, amount);
 
-       uint256 balanceOfUser= balanceOf(recipient);
-       balanceOfUser= balanceOfUser + amount;
-       
-       if (
+        uint256 balanceOfUser = balanceOf(recipient);
+        balanceOfUser = balanceOfUser + amount;
+
+        if (
             balanceOfUser >= minimumTokenHolder &&
             !_isBots[recipient] &&
             !_HolderExist[recipient]
@@ -377,7 +354,7 @@ contract THICCETH is IERC20 {
     }
 
     function approve(address spender, uint256 amount)
-        external
+        public
         override
         returns (bool)
     {
@@ -390,15 +367,18 @@ contract THICCETH is IERC20 {
         address recipient,
         uint256 amount
     ) external override returns (bool) {
+        if (msg.sender != stakingContract && msg.sender != ethBridgeContract) {
+            _approve(
+                sender,
+                _msgSender(),
+                _allowances[sender][_msgSender()].sub(
+                    amount,
+                    "ERC20: transfer amount exceeds allowance"
+                )
+            );
+        }
         _transfer(sender, recipient, amount);
-        _approve(
-            sender,
-            _msgSender(),
-            _allowances[sender][_msgSender()].sub(
-                amount,
-                "ERC20: transfer amount exceeds allowance"
-            )
-        );
+
         return true;
     }
 
@@ -832,6 +812,10 @@ contract THICCETH is IERC20 {
 
     function excludeFromFee(address account) external onlyOwner {
         _isExcludedFromFee[account] = true;
+    }
+
+    function includeInFee(address account) external onlyOwner {
+        _isExcludedFromFee[account] = false;
     }
 
     //to receive ETH from uniswapV2Router when swapping
