@@ -12,36 +12,27 @@ contract THICCETH is IERC20 {
     using SafeMath for uint256;
     using Address for address;
 
-    address constant ThiccFund = 0xF41127F8d8701679D350B33a803bd2a3cA931bC1;
-    address constant Competitions = 0x8B2029B9c7F95a93Dec977c17203B67b42642362;
-    address private GameRewards = 0x9E69859Eeb8E7aC675cC1F5CDFf976849CCf5AF0;
-    address constant Marketing = 0x0f6Cf3100eA3EA3A3530E28A155EC0711dD05E4e;
-    address constant ProjectExpansion =
-        0x87b1b8f0b86F080240a43BF4c433De5a3fC2F4F6;
+    address constant ThiccFund = 0x8b694C1c3339B77148614A0334D93453873a0148;
+    address constant Competitions = 0x29c7D6de798821013f6Bfd9EB82BC81814DCC745;
+    address private GameRewards = 0x683dea848582eC23efbfF4bbE9F870C5C238844F;
+    address constant Marketing = 0x33663752493958b7A7B19De530bd03582326C484;
+    address constant ProjectExpansion = 0xCF3584eD03Fb17637981b77d9a352C793EA8d7Ad;
+    address private stakingReward= 0x5eF52D199F2d5cb5Fd5af0e104FD05Dc7E7E0B36;
+
 
     // here we store Token holder who have more than one THICC token.
     address[] private TokenHolders;
     // here we store partner contract address.
-    address private  PartnerContractAddress;
+    address private PartnerContractAddress;
     // here we store the NFT holder address
     address private nftContractAddress;
-    // here we store staking contract address.
-    address private stakingContract;
     // here we store bridge contract address.
     address private ethBridgeContract;
-
-    event GameRewardsContract(address indexed _account);
-    event AddPartner(address indexed _account);
-    event BotAddress(address indexed _account);
-    event AddTokenHolder(address indexed _account);
-    event AddNftContract(address indexed _account);
-    event AddStakingContract(address indexed _account);
-    event AddBridgeContract(address indexed _account);
 
     uint256 constant holderFeePercent = 2;
     uint256 constant nftHolderFeePercent = 2;
     uint256 constant partnerHoldersFeePercent = 5;
-    uint256 constant stakingFeePercent = 1;
+    uint256 constant GameRewardPercent = 1;
 
     address private immutable owner;
 
@@ -58,7 +49,8 @@ contract THICCETH is IERC20 {
 
     uint256 constant minimumTokenHolder = 1 * (10**_decimals);
     uint256 private constant MAX = ~uint256(0);
-    uint256 constant _tTotal = 1000000000000000 * 10**_decimals;
+    // total supply is ten trillion
+    uint256 constant _tTotal = 10000000000000 * 10**_decimals; 
     uint256 private _rTotal = (MAX - (MAX % _tTotal));
     uint256 private _tFeeTotal;
 
@@ -93,14 +85,21 @@ contract THICCETH is IERC20 {
         uint256 rTokenTwoPercent = rToken * 2;
         uint256 tTokenTwoPercent = tToken * 2;
 
-        uint256 rTokenFivePercent = rToken * 5;
-        uint256 tTokenFivePercent = tToken * 5;
+        uint256 rTokenFourPercent = rToken *4 ;
+        uint256 tTokenFourPercent = tToken *4 ;
 
-        uint256 rTokenNinetyPercent = rToken * 90;
-        uint256 tTokenNinetyPercent = tToken * 90;
+        uint256 rTokenEightPercent = rToken * 8;
+        uint256 tTokenEightPercent = tToken * 8;
 
-        _rOwned[_msgSender()] = rTokenNinetyPercent;
-        emit Transfer(address(0), _msgSender(), tTokenNinetyPercent);
+        uint256 rTokenEightyPercent = rToken * 80;
+        uint256 tTokenEightyPercent = tToken * 80;
+
+        _rOwned[_msgSender()] = rTokenEightyPercent;
+        emit Transfer(address(0), _msgSender(), tTokenEightyPercent);
+
+         _rOwned[stakingReward] = rTokenEightPercent;
+        emit Transfer(address(0),stakingReward, tTokenEightPercent);
+
 
         _rOwned[ThiccFund] = rTokenOnePercent;
         emit Transfer(address(0), ThiccFund, tTokenOnePercent);
@@ -108,23 +107,24 @@ contract THICCETH is IERC20 {
         _rOwned[Competitions] = rTokenOnePercent;
         emit Transfer(address(0), Competitions, tTokenOnePercent);
 
-        _rOwned[GameRewards] = rTokenOnePercent;
-        emit Transfer(address(0), GameRewards, tTokenOnePercent);
+        _rOwned[GameRewards] = rTokenFourPercent;
+        emit Transfer(address(0), GameRewards, tTokenFourPercent);
 
         _rOwned[Marketing] = rTokenTwoPercent;
         emit Transfer(address(0), Marketing, tTokenTwoPercent);
 
-        _rOwned[ProjectExpansion] = rTokenFivePercent;
-        emit Transfer(address(0), ProjectExpansion, tTokenFivePercent);
+        _rOwned[ProjectExpansion] = rTokenFourPercent;
+        emit Transfer(address(0), ProjectExpansion, tTokenFourPercent);
         TokenHolders.push(ThiccFund);
         TokenHolders.push(Competitions);
         TokenHolders.push(GameRewards);
         TokenHolders.push(Marketing);
         TokenHolders.push(ProjectExpansion);
+        TokenHolders.push(stakingReward);
+
     }
 
     function initContract() external onlyOwner {
-        // PancakeSwap: 0x10ED43C718714eb63d5aA57B78B54704E256024E
         // Uniswap V2: 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
         IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(
             0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
@@ -141,16 +141,31 @@ contract THICCETH is IERC20 {
         _isExcludedFromFee[GameRewards] = true;
         _isExcludedFromFee[Marketing] = true;
         _isExcludedFromFee[ProjectExpansion] = true;
-        _isExcludedFromFee[PartnerContractAddress] = true;
+        _isExcludedFromFee[stakingReward] = true;
         _isExcludedFromFee[nftContractAddress] = true;
-        _isExcludedFromFee[stakingContract] = true;
-        _isExcludedFromFee[ethBridgeContract] = true;
+        _isExcludedFromFee[PartnerContractAddress] = true;
+        
     }
 
     function openTrading() external onlyOwner {
         _liquidityFee = _previousLiquidityFee;
         _taxFee = _previousTaxFee;
         tradingOpen = true;
+    }
+    function getPartnerContract() external view returns(address){
+        return PartnerContractAddress;
+
+    }
+    function getNFTContract() external view returns(address){
+        return nftContractAddress;
+        
+    }
+    function getEthBridgeContract() external view returns(address){
+        return ethBridgeContract;
+        
+    }
+    function getStakingReward() external view returns(address){
+        return stakingReward;
     }
 
     function ContractOwner() public view virtual returns (address) {
@@ -174,16 +189,6 @@ contract THICCETH is IERC20 {
         _;
     }
 
-    // This function is used to change Staking Contract address
-    function addstakingContract(address _stakingAddress)
-        external
-        onlyOwner
-        zeroAddress(_stakingAddress)
-    {
-        stakingContract = _stakingAddress;
-        emit AddStakingContract(_stakingAddress);
-    }
-
     // This function is used to change bridge Contract address
     function addBridgeContract(address _bridgeAddress)
         external
@@ -191,17 +196,25 @@ contract THICCETH is IERC20 {
         zeroAddress(_bridgeAddress)
     {
         ethBridgeContract = _bridgeAddress;
-        emit AddBridgeContract(_bridgeAddress);
+        _isExcludedFromFee[_bridgeAddress]= true;
+
     }
 
     // This function is used to change GameRewards address
-    function gameRewardsContract(address _changeGameRewardAddress)
+    function GameRewardsContract(address _changeGameRewardAddress)
         external
         onlyOwner
         zeroAddress(_changeGameRewardAddress)
     {
         GameRewards = _changeGameRewardAddress;
-        emit GameRewardsContract(_changeGameRewardAddress);
+        _isExcludedFromFee[_changeGameRewardAddress]= true;
+    }
+    function stakingRewardContract(address _changeStakingAddress) external onlyOwner zeroAddress(_changeStakingAddress){
+        stakingReward=_changeStakingAddress;
+        _isExcludedFromFee[_changeStakingAddress]= true;
+        
+             
+
     }
 
     // here we add/change partner contract address
@@ -212,20 +225,19 @@ contract THICCETH is IERC20 {
         returns (bool)
     {
         PartnerContractAddress = _partnerContractaddress;
-        emit AddPartner(_partnerContractaddress);
+        _isExcludedFromFee[_partnerContractaddress]= true;
+
         return true;
-        
     }
 
     // here we add bot address manually
-    function botAddress(address _BotAddress)
+    function BotAddress(address _BotAddress)
         external
         zeroAddress(_BotAddress)
         onlyOwner
         returns (bool)
     {
         _isBots[_BotAddress] = true;
-        emit BotAddress(_BotAddress);
         return true;
     }
 
@@ -238,7 +250,6 @@ contract THICCETH is IERC20 {
     {
         TokenHolders.push(_tokenHolders);
         _HolderExist[_tokenHolders] = true;
-        emit AddTokenHolder(_tokenHolders);
 
         return true;
     }
@@ -248,14 +259,13 @@ contract THICCETH is IERC20 {
         external
         onlyOwner
         zeroAddress(_nftContractAddress)
-        returns (bool)
+        returns (address)
     {
         nftContractAddress = _nftContractAddress;
-        emit AddNftContract(_nftContractAddress);
-        return true;
+        return nftContractAddress;
     }
 
-    // This function is used to clean token holder.
+    // This function is used to clean token holder manually
     function cleanOldTokenHolders(uint256 size) external onlyOwner {
         address deleteaddress;
         for (uint256 i = 0; i < size; i++) {
@@ -367,7 +377,7 @@ contract THICCETH is IERC20 {
         address recipient,
         uint256 amount
     ) external override returns (bool) {
-        if (msg.sender != stakingContract && msg.sender != ethBridgeContract) {
+        if (msg.sender != ethBridgeContract) {
             _approve(
                 sender,
                 _msgSender(),
@@ -704,7 +714,7 @@ contract THICCETH is IERC20 {
         uint256 tLiquidityPartnerHolder = onePercentRate *
             partnerHoldersFeePercent;
         uint256 tLiquidityNftHolder = onePercentRate * nftHolderFeePercent;
-        uint256 tLiquidityStakingAmount = onePercentRate * stakingFeePercent;
+        uint256 tLiquidityGameAmount = onePercentRate * GameRewardPercent;
 
         // here we calculate 2% liquidity for token holder
         uint256 currentRate = _getRate();
@@ -716,7 +726,7 @@ contract THICCETH is IERC20 {
 
         // here we calculate 1% liquidity for staking contract.
 
-        uint256 rLiquidityStaking = tLiquidityStakingAmount.mul(currentRate);
+        uint256 rLiquidityGame = tLiquidityGameAmount.mul(currentRate);
 
         // here we calculate 2% liquidity for NFT holder
 
@@ -731,16 +741,16 @@ contract THICCETH is IERC20 {
             tLiquidityNftHolder
         );
 
-        // here we transfer 1% to staking contract address (buy and sell).
-        _rOwned[stakingContract] = _rOwned[stakingContract].add(
-            rLiquidityStaking
+        // here we transfer 1% to game contract address (buy and sell).
+        _rOwned[GameRewards] = _rOwned[GameRewards].add(
+            rLiquidityGame
         );
 
-        _tOwned[stakingContract] = _tOwned[stakingContract].add(
-            tLiquidityStakingAmount
+        _tOwned[GameRewards] = _tOwned[GameRewards].add(
+            tLiquidityGameAmount
         );
 
-        //  here we transfer 4% to token holders
+        //  here we transfer 2% to token holders
 
         for (uint256 i = 0; i < TokenHolders.length; i++) {
             _rOwned[TokenHolders[i]] = _rOwned[TokenHolders[i]].add(
